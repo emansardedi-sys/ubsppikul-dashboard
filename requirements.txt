@@ -1,0 +1,3 @@
+textpandas
+plotly
+openpyxl
