@@ -19,10 +19,9 @@ def clean_currency(val):
     except ValueError:
         return 0
 
-# Fungsi membaca data online via jalur ekspor CSV per lembar kerja (sangat aman dari error DNS)
-@st.cache_data(ttl=15)
+# Fungsi membaca data online via jalur ekspor CSV per lembar kerja (Sangat Stabil & Ringan)
+@st.cache_data(ttl=10)
 def load_data_csv_online(sheet_id):
-    # Mengunduh data per sheet menggunakan link ekspor CSV resmi Google
     url_kelompok = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Kelompok_UBSP"
     url_anggota = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Anggota_UBSP"
     url_progres = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Progres_UBSP"
@@ -31,7 +30,7 @@ def load_data_csv_online(sheet_id):
     df_anggota = pd.read_csv(url_anggota)
     df_progres = pd.read_csv(url_progres)
     
-    # Pembersihan data otomatis
+    # Pembersihan data otomatis dari baris kosong Google Sheets
     df_kelompok = df_kelompok.dropna(subset=['Nama UBSP'])
     df_kelompok['Desa'] = df_kelompok['Desa'].fillna('Belum Terdata')
     
@@ -47,11 +46,11 @@ def load_data_csv_online(sheet_id):
             
     return df_kelompok, df_anggota, df_progres
 
-# ID Tautan Google Sheets Resmi Anda
+# ID Tautan Google Sheets Resmi Anda (Langsung dikunci di dalam sistem agar aman dari error string split)
 GOOGLE_SHEET_ID = "1aHcQbLKFezNRz8c_1-zCmnP07s_j-D9xhCyFvxDUDzA"
 
 try:
-    # Memanggil data menggunakan metode CSV baru
+    # Memanggil data menggunakan metode jalur CSV langsung
     df_kelompok, df_anggota, df_progres = load_data_csv_online(GOOGLE_SHEET_ID)
     
     # Filter Wilayah di Sidebar
