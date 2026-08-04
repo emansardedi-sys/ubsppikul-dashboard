@@ -4,8 +4,8 @@ import plotly.express as px
 
 # 1. Konfigurasi Utama Halaman Dashboard
 st.set_page_config(page_title="Dashboard UBSP PIKUL NTT", layout="wide")
-st.title("📊 Dashboard Monitoring Live UBSP Yayasan PIKUL")
-st.markdown("Analisis data inklusi sosial, gender, dan permodalan sinkron otomatis langsung dari Google Sheets.")
+st.title("📊 Dashboard Monitoring UBSP Yayasan PIKUL")
+st.markdown("Aplikasi Manajemen Data Kelompok UBSP PIKUL Wilayah NTT.")
 
 # Fungsi pembersihan teks mata uang (Rp50.000 -> 50000) agar tidak error matematika
 def clean_currency(val):
@@ -19,39 +19,51 @@ def clean_currency(val):
     except ValueError:
         return 0
 
-# Fungsi membaca data online via jalur ekspor CSV per lembar kerja (Sangat Stabil & Ringan)
-@st.cache_data(ttl=10)
-def load_data_csv_online(sheet_id):
-    url_kelompok = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Kelompok_UBSP"
-    url_anggota = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Anggota_UBSP"
-    url_progres = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Progres_UBSP"
-    
-    df_kelompok = pd.read_csv(url_kelompok)
-    df_anggota = pd.read_csv(url_anggota)
-    df_progres = pd.read_csv(url_progres)
-    
-    # Pembersihan data otomatis dari baris kosong Google Sheets
-    df_kelompok = df_kelompok.dropna(subset=['Nama UBSP'])
-    df_kelompok['Desa'] = df_kelompok['Desa'].fillna('Belum Terdata')
-    
-    kolom_angka = ['Jumlah Anggota', 'Perempuan', 'Laki-Laki', 'Difabel', 'Lansia', 'Kepala Keluarga Perempuan']
-    for col in kolom_angka:
-        if col in df_kelompok.columns:
-            df_kelompok[col] = pd.to_numeric(df_kelompok[col], errors='coerce').fillna(0).astype(int)
-            
-    kolom_keuangan = ['Simpanan Pokok', 'Simpanan Wajib', 'Modal Tambahan PIKUL', 'Modal Tambahan Usaha', 'Total Estimasi Modal per Nov 2025']
-    for col in kolom_keuangan:
-        if col in df_kelompok.columns:
-            df_kelompok[col] = df_kelompok[col].apply(clean_currency)
-            
-    return df_kelompok, df_anggota, df_progres
+# Fungsi untuk memproses data dari berkas Excel yang diunggah
+def process_ubsp_data(uploaded_file):
+    try:
+        xl = pd.ExcelFile(uploaded_file)
+        
+        # Deteksi otomatis nama sheet (toleran jika ada variasi nama sheet)
+        sheet_kelompok = [s for s in xl.sheet_names if 'Kelompok' in s or 'Sheet 1' in s or 'Sheet1' in s][0]
+        sheet_anggota = [s for s in xl.sheet_names if 'Anggota' in s or 'Sheet 2' in s or 'Sheet2' in s][0]
+        sheet_progres = [s for s in xl.sheet_names if 'Progres' in s or 'Sheet 3' in s or 'Sheet3' in s][0]
+        
+        df_kelompok = pd.read_excel(xl, sheet_name=sheet_kelompok)
+        df_anggota = pd.read_excel(xl, sheet_name=sheet_anggota)
+        df_progres = pd.read_excel(xl, sheet_name=sheet_progres)
+        
+        # Bersihkan baris-baris kosong
+        df_kelompok = df_kelompok.dropna(subset=['Nama UBSP'])
+        df_kelompok['Desa'] = df_kelompok['Desa'].fillna('Belum Terdata')
+        
+        kolom_angka = ['Jumlah Anggota', 'Perempuan', 'Laki-Laki', 'Difabel', 'Lansia', 'Kepala Keluarga Perempuan']
+        for col in kolom_angka:
+            if col in df_kelompok.columns:
+                df_kelompok[col] = pd.to_numeric(df_kelompok[col], errors='coerce').fillna(0).astype(int)
+                
+        kolom_keuangan = ['Simpanan Pokok', 'Simpanan Wajib', 'Modal Tambahan PIKUL', 'Modal Tambahan Usaha', 'Total Estimasi Modal per Nov 2025']
+        for col in kolom_keuangan:
+            if col in df_kelompok.columns:
+                df_kelompok[col] = df_kelompok[col].apply(clean_currency)
+                
+        return df_kelompok, df_anggota, df_progres, None
+    except Exception as error_internal:
+        return None, None, None, str(error_internal)
 
-# ID Tautan Google Sheets Resmi Anda (Langsung dikunci di dalam sistem agar aman dari error string split)
-GOOGLE_SHEET_ID = "1aHcQbLKFezNRz8c_1-zCmnP07s_j-D9xhCyFvxDUDzA"
+# 2. Kotak Unggah Berkas Utama di Halaman Depan Web Online
+st.markdown("---")
+file_lokal = st.file_uploader("📁 Tarik & Lepas (Drag & Drop) File Excel Pendataan UBSP PIKUL Anda ke Sini:", type=["xlsx"])
 
-try:
-    # Memanggil data menggunakan metode jalur CSV langsung
-    df_kelompok, df_anggota, df_progres = load_data_csv_online(GOOGLE_SHEET_ID)
+df_kelompok, df_anggota, df_progres, err_msg = None, None, None, None
+
+if file_lokal is not None:
+    df_kelompok, df_anggota, df_progres, err_msg = process_ubsp_data(file_lokal)
+else:
+    st.info("💡 Mode Mandiri Aktif: Silakan unduh file Google Sheets Anda ke komputer dalam format .xlsx, lalu masukkan filenya pada kotak di atas untuk melihat dashboard.")
+
+# 3. Alur Render Visualisasi Jika Data Berhasil Dimuat
+if df_kelompok is not None and err_msg is None:
     
     # Filter Wilayah di Sidebar
     st.sidebar.header("⚙️ Filter Wilayah")
@@ -100,8 +112,10 @@ try:
         st.plotly_chart(fig_rentan, use_container_width=True)
         
     st.markdown("---")
+    
+    # Tabel Ringkasan Keuangan
     st.subheader("💰 Ringkasan Data Finansial Kelompok Terfilter")
     st.dataframe(df_kelompok_filtered[['Nama UBSP', 'Desa', 'Kecamatan', 'Jumlah Anggota', 'Total Estimasi Modal per Nov 2025']], use_container_width=True)
 
-except Exception as e:
-    st.error(f"Gagal memuat visualisasi live. Error Teknis: {e}")
+elif err_msg is not None:
+    st.error(f"Gagal memproses data berkas. Kendala Teknis: {err_msg}")
