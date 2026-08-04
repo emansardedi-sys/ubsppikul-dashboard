@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import urllib.request
-import io
 
 # 1. Konfigurasi Utama Halaman Dashboard
 st.set_page_config(page_title="Dashboard UBSP PIKUL NTT", layout="wide")
@@ -21,27 +19,19 @@ def clean_currency(val):
     except ValueError:
         return 0
 
-# Fungsi membaca data online dengan aman menggunakan urllib request data biner
-@st.cache_data(ttl=30)
-def load_data_online_safe(sheet_id):
-    url = f"https://google.com{sheet_id}/export?format=xlsx"
+# Fungsi membaca data online via jalur ekspor CSV per lembar kerja (sangat aman dari error DNS)
+@st.cache_data(ttl=15)
+def load_data_csv_online(sheet_id):
+    # Mengunduh data per sheet menggunakan link ekspor CSV resmi Google
+    url_kelompok = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Kelompok_UBSP"
+    url_anggota = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Anggota_UBSP"
+    url_progres = f"https://google.com{sheet_id}/gviz/tq?tqx=out:csv&sheet=Progres_UBSP"
     
-    # Menambahkan User-Agent palsu agar request dari server cloud tidak diblokir oleh Google
-    req = urllib.request.Request(
-        url, 
-        headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    )
+    df_kelompok = pd.read_csv(url_kelompok)
+    df_anggota = pd.read_csv(url_anggota)
+    df_progres = pd.read_csv(url_progres)
     
-    # Mengunduh data spreadsheet sebagai objek file biner di memori
-    with urllib.request.urlopen(req) as response:
-        file_data = response.read()
-        
-    xl = pd.ExcelFile(io.BytesIO(file_data))
-    df_kelompok = pd.read_excel(xl, sheet_name='Kelompok_UBSP')
-    df_anggota = pd.read_excel(xl, sheet_name='Anggota_UBSP')
-    df_progres = pd.read_excel(xl, sheet_name='Progres_UBSP')
-    
-    # Bersihkan baris-baris kosong
+    # Pembersihan data otomatis
     df_kelompok = df_kelompok.dropna(subset=['Nama UBSP'])
     df_kelompok['Desa'] = df_kelompok['Desa'].fillna('Belum Terdata')
     
@@ -61,8 +51,8 @@ def load_data_online_safe(sheet_id):
 GOOGLE_SHEET_ID = "1aHcQbLKFezNRz8c_1-zCmnP07s_j-D9xhCyFvxDUDzA"
 
 try:
-    # Memanggil data menggunakan fungsi pengaman baru
-    df_kelompok, df_anggota, df_progres = load_data_online_safe(GOOGLE_SHEET_ID)
+    # Memanggil data menggunakan metode CSV baru
+    df_kelompok, df_anggota, df_progres = load_data_csv_online(GOOGLE_SHEET_ID)
     
     # Filter Wilayah di Sidebar
     st.sidebar.header("⚙️ Filter Wilayah")
@@ -116,4 +106,3 @@ try:
 
 except Exception as e:
     st.error(f"Gagal memuat visualisasi live. Error Teknis: {e}")
-    st.info("💡 Solusi Alternatif: Coba pastikan file Google Sheets Anda benar-benar dalam status dibagikan ke Publik (Viewer).")
